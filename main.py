@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from clients.finnhub_client import FinnhubRateLimitError, finnhub
-from config import CORS_ORIGINS, NEWS_TTL
+from config import NEWS_TTL
 from models import MarketNewsItem, MarketState, Portfolio, Stock
 from services.market import get_market_state
 from services.portfolio import get_mock_portfolio
@@ -20,10 +20,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=[
+        "http://localhost:8080",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=[""],
+    allow_headers=[""],
 )
 
 
