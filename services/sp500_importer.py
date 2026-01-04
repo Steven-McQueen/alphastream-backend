@@ -96,7 +96,7 @@ def parse_stock_data(raw: dict) -> dict:
 
 def fetch_and_import_sp500() -> int:
     """Fetch data from SP500Live and import to database"""
-    url = "https://www.sp500live.co/sp500companies.json"
+    url = "https://www.sp500live.co/sp500_companies.json"
 
     print(f"🔄 Fetching S&P 500 data from {url}...")
     start_time = time.time()
@@ -109,13 +109,14 @@ def fetch_and_import_sp500() -> int:
         print(f"✅ Fetched {len(raw_data)} stocks")
 
         parsed_stocks = []
-        for raw_stock in raw_data:
-            try:
-                parsed = parse_stock_data(raw_stock)
-                if parsed['ticker']:
-                    parsed_stocks.append(parsed)
-            except Exception as e:
-                print(f"⚠️  Error parsing {raw_stock.get('ticker', 'UNKNOWN')}: {e}")
+        for ticker, stock_data in raw_data.items():
+          try:
+            stock_data['ticker'] = ticker
+            parsed = parse_stock_data(stock_data)
+            if parsed['ticker']:
+              parsed_stocks.append(parsed)
+          except Exception as e:
+            print(f"⚠️  Error parsing {ticker}: {e}")
 
         count = db.insert_stocks_bulk(parsed_stocks)
 
