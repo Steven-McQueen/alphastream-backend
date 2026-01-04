@@ -11,6 +11,7 @@ from services.market import get_market_state
 from services.portfolio import get_mock_portfolio
 from services.universe import get_core_universe, get_stock_detail, search_symbol
 from utils.cache import TTLCache
+from services.refresh_scheduler import start_scheduler_background
 
 app = FastAPI(
     title="AlphaStream API",
@@ -28,6 +29,11 @@ app.add_middleware(
     allow_methods=[""],
     allow_headers=[""],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on app startup"""
+    start_scheduler_background()
 
 
 @app.get("/")
@@ -154,6 +160,20 @@ def company_news(ticker: str):
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/data/status")
+def get_data_status():
+    """Get database refresh status"""
+    from database.db_manager import db
+
+    age_minutes = db.get_data_age()
+    refresh_history = db.get_refresh_history(limit=5)
+
+    return {
+        "data_age_minutes": round(age_minutes, 2) if age_minutes else None,
+        "recent_refreshes": refresh_history,
+    }
 
 
 if __name__ == "__main__":

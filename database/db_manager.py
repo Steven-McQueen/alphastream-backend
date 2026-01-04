@@ -183,6 +183,22 @@ class DatabaseManager:
       return True
     return age > max_age_minutes
 
+  def get_refresh_history(self, limit: int = 5):
+    """Return recent refresh log entries"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute("""
+        SELECT refresh_time, stocks_updated, data_source, success, error_message, duration_seconds
+        FROM refresh_log
+        ORDER BY refresh_time DESC
+        LIMIT ?
+      """, (limit,))
+      rows = cursor.fetchall()
+      return [dict(row) for row in rows]
+    finally:
+      self.close()
+
 
 # Global database instance
 db = DatabaseManager()
