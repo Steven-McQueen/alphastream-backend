@@ -12,21 +12,45 @@ from database.db_manager import db
 
 def clean_percent(value: str) -> float:
     """Convert '+12.34%' or '-5.67%' to float 12.34 or -5.67"""
-    if not value or value in ['--', 'N/A', '']:
+    if not value or value in ['--', 'N/A', '', 'None']:
         return 0.0
     try:
-        return float(value.replace('%', '').replace('+', '').strip())
-    except:
+        clean_val = value.replace('%', '').replace('+', '').replace(',', '').strip()
+        return float(clean_val)
+    except (ValueError, AttributeError):
         return 0.0
+
+
+def clean_float(value: str) -> float:
+    """Convert any string to float, handling commas and invalid data"""
+    if not value or value in ['--', 'N/A', '', 'None']:
+        return 0.0
+    try:
+        clean_val = str(value).replace(',', '').strip()
+        return float(clean_val)
+    except (ValueError, AttributeError):
+        return 0.0
+
+
+def clean_int(value: str) -> int:
+    """Convert string to int, handling commas, slashes, and invalid data"""
+    if not value or value in ['--', 'N/A', '', 'None']:
+        return 0
+    try:
+        clean_val = str(value).replace(',', '').strip()
+        if '/' in clean_val:
+            clean_val = clean_val.split('/')[0]
+        return int(float(clean_val))
+    except (ValueError, AttributeError):
+        return 0
 
 
 def parse_market_cap(value: str) -> float:
     """Convert '405,280.20M' to float 405280.20 (millions)"""
-    if not value or value in ['--', 'N/A', '']:
+    if not value or value in ['--', 'N/A', '', 'None']:
         return 0.0
     try:
-        clean_val = value.replace(',', '').strip()
-
+        clean_val = str(value).replace(',', '').strip()
         if 'T' in clean_val:
             return float(clean_val.replace('T', '')) * 1_000_000
         elif 'B' in clean_val:
@@ -35,7 +59,7 @@ def parse_market_cap(value: str) -> float:
             return float(clean_val.replace('M', ''))
         else:
             return float(clean_val)
-    except:
+    except (ValueError, AttributeError):
         return 0.0
 
 
@@ -47,7 +71,7 @@ def parse_stock_data(raw: dict) -> dict:
         'sector': raw.get('sector', ''),
         'industry': raw.get('industry', ''),
 
-        'price': float(raw.get('last', 0) or 0),
+        'price': clean_float(raw.get('last', '0')),
         'change_1d': clean_percent(raw.get('change_1d', '0%')),
         'change_1w': clean_percent(raw.get('change_1w', '0%')),
         'change_1m': clean_percent(raw.get('change_1m', '0%')),
@@ -55,10 +79,10 @@ def parse_stock_data(raw: dict) -> dict:
         'change_5y': clean_percent(raw.get('change_5y', '0%')),
         'change_ytd': clean_percent(raw.get('change_YTD', '0%')),
 
-        'volume': int(str(raw.get('volume_1d', '0')).replace(',', '') or 0),
+        'volume': clean_int(raw.get('volume_1d', '0')),
 
-        'high_1d': float(raw.get('high', 0) or 0),
-        'low_1d': float(raw.get('low', 0) or 0),
+        'high_1d': clean_float(raw.get('high', '0')),
+        'low_1d': clean_float(raw.get('low', '0')),
         'high_1m': clean_percent(raw.get('high_1m', '0%')),
         'low_1m': clean_percent(raw.get('low_1m', '0%')),
         'high_1y': clean_percent(raw.get('high_1y', '0%')),
@@ -66,8 +90,8 @@ def parse_stock_data(raw: dict) -> dict:
         'high_5y': clean_percent(raw.get('high_5y', '0%')),
         'low_5y': clean_percent(raw.get('low_5y', '0%')),
 
-        'pe_ratio': float(raw.get('pe_ratio', 0) or 0),
-        'eps': float(raw.get('eps', 0) or 0),
+        'pe_ratio': clean_float(raw.get('pe_ratio', '0')),
+        'eps': clean_float(raw.get('eps', '0')),
         'dividend_yield': clean_percent(raw.get('dividendyield', '0%')),
         'market_cap': parse_market_cap(raw.get('MarketCap', '0M')),
         'shares_outstanding': parse_market_cap(raw.get('SharesOutstanding', '0M')),
@@ -77,16 +101,16 @@ def parse_stock_data(raw: dict) -> dict:
         'roe': clean_percent(raw.get('ROETTM', '0%')),
         'revenue_ttm': parse_market_cap(raw.get('revenuettm', '0M')),
 
-        'beta': float(raw.get('beta', 1.0) or 1.0),
+        'beta': clean_float(raw.get('beta', '1.0')),
         'institutional_ownership': clean_percent(raw.get('InstitutionalOwnership', '0%')),
         'debt_to_equity': clean_percent(raw.get('DEBTEQTYQ', '0%')) if raw.get('DEBTEQTYQ') not in ['--', 'N/A'] else None,
 
-        'year_founded': int(raw.get('year_founded', 0) or 0),
+        'year_founded': clean_int(raw.get('year_founded', '0')),
         'website': raw.get('Url', ''),
         'city': raw.get('city', ''),
         'state': raw.get('state', ''),
         'zip': raw.get('zip', ''),
-        'weight': float(raw.get('weight', 0) or 0),
+        'weight': clean_float(raw.get('weight', '0')),
 
         'last_updated': datetime.now().isoformat(),
         'data_source': 'sp500live',
