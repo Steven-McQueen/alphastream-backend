@@ -1,31 +1,36 @@
 import sqlite3
+import threading
 from pathlib import Path
 from typing import List, Optional
+from datetime import datetime, timedelta
 
 
 class DatabaseManager:
   """Manages SQLite database for stock data caching"""
 
   def __init__(self, db_path: str = "data/stocks.db"):
-    self.db_path = Path(db_path)
-    self.db_path.parent.mkdir(parents=True, exist_ok=True)
-    self.conn = None
-
+      self.db_path = db_path
+      Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+      self._local = threading.local()  # ADD THIS LINE
+  
   def connect(self):
-    """Connect to database"""
-    self.conn = sqlite3.connect(
-      self.db_path,
-      check_same_thread=False,
-      timeout=10.0
-    )
-    self.conn.row_factory = sqlite3.Row
-    return self.conn
-
+      """Get thread-local connection"""
+      # REPLACE OLD connect() METHOD WITH THIS:
+      if not hasattr(self._local, 'connection') or self._local.connection is None:
+          self._local.connection = sqlite3.connect(
+              self.db_path,
+              check_same_thread=False,
+              timeout=30.0
+          )
+          self._local.connection.row_factory = sqlite3.Row
+      return self._local.connection
+  
   def close(self):
-    """Close database connection"""
-    if self.conn:
-      self.conn.close()
-      self.conn = None
+      """Close thread-local connection"""
+      # REPLACE OLD close() METHOD WITH THIS:
+      if hasattr(self._local, 'connection') and self._local.connection:
+          self._local.connection.close()
+          self._local.connection = None
 
   def init_database(self):
     """Initialize database with schema"""
@@ -37,7 +42,7 @@ class DatabaseManager:
     conn = self.connect()
     conn.executescript(schema)
     conn.commit()
-    print(f"✅ Database initialized at {self.db_path}")
+    print(f"Database initialized at {self.db_path}")
     self.close()
 
   def insert_stocks_bulk(self, stocks: List[dict]) -> int:
@@ -74,10 +79,10 @@ class DatabaseManager:
           """, stock)
           success_count += 1
         except Exception as e:
-          print(f"❌ Error inserting {stock.get('ticker')}: {e}")
+          print(f"Error inserting {stock.get('ticker')}: {e}")
 
       conn.commit()
-      print(f"✅ Inserted/updated {success_count}/{len(stocks)} stocks")
+      print(f"Inserted/updated {success_count}/{len(stocks)} stocks")
       return success_count
 
     finally:
@@ -194,6 +199,210 @@ class DatabaseManager:
         ORDER BY refresh_time DESC
         LIMIT ?
       """, (limit,))
+      rows = cursor.fetchall()
+      return [dict(row) for row in rows]
+    finally:
+      self.close()
+
+  # ============================================================================
+  # MARKET INDICES METHODS
+  # ============================================================================
+  def insert_or_update_index(self, symbol: str, name: str, value: float,
+                             change: float, change_pct: float):
+    """Insert or update a market index"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        INSERT OR REPLACE INTO market_indices 
+        (symbol, name, value, change, change_pct, last_updated)
+        VALUES (?, ?, ?, ?, ?, ?)
+      ''', (symbol, name, value, change, change_pct, datetime.now().isoformat()))
+      conn.commit()
+    finally:
+      self.close()
+
+  def get_all_indices(self) -> List[dict]:
+    """Get all market indices"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('SELECT * FROM market_indices')
+      rows = cursor.fetchall()
+      return [dict(row) for row in rows]
+    finally:
+      self.close()
+
+  # ============================================================================
+  # ALTERNATIVE ASSETS METHODS
+  # ============================================================================
+  def insert_or_update_alternative_asset(
+      self,
+      symbol: str,
+      name: str,
+      asset_type: str,
+      value: float = None,
+      change: float = None,
+      change_percent: float = None,
+      fetch_error: str = None,
+  ):
+      """Insert or update an alternative asset (crypto, commodity, currency)."""
+      conn = self.connect()
+      cursor = conn.cursor()
+      try:
+          cursor.execute(
+              """
+              INSERT OR REPLACE INTO alternative_assets
+              (symbol, name, asset_type, value, change, change_percent, last_updated, fetch_error)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              """,
+              (
+                  symbol,
+                  name,
+                  asset_type,
+                  value,
+                  change,
+                  change_percent,
+                  datetime.now().isoformat(),
+                  fetch_error,
+              ),
+          )
+          conn.commit()
+      finally:
+          self.close()
+
+  def get_all_alternative_assets(self) -> List[dict]:
+      """Return all alternative assets."""
+      conn = self.connect()
+      cursor = conn.cursor()
+      try:
+          cursor.execute("SELECT * FROM alternative_assets")
+          rows = cursor.fetchall()
+          return [dict(row) for row in rows]
+      finally:
+          self.close()
+
+  # ============================================================================
+  # MACRO INDICATORS METHODS
+  # ============================================================================
+  def insert_or_update_indicator(self, indicator_id: str, name: str,
+                                 value: float, change: float = None,
+                                 unit: str = '%'):
+    """Insert or update a macro indicator"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        INSERT OR REPLACE INTO macro_indicators 
+        (indicator_id, name, value, change, unit, last_updated)
+        VALUES (?, ?, ?, ?, ?, ?)
+      ''', (indicator_id, name, value, change, unit, datetime.now().isoformat()))
+      conn.commit()
+    finally:
+      self.close()
+
+  def get_all_indicators(self) -> List[dict]:
+    """Get all macro indicators"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('SELECT * FROM macro_indicators')
+      rows = cursor.fetchall()
+      return [dict(row) for row in rows]
+    finally:
+      self.close()
+
+  # ============================================================================
+  # HISTORICAL DATA METHODS
+  # ============================================================================
+  def insert_treasury_history(self, date: str, yield_10y: float, yield_2y: float = None):
+    """Insert treasury yield data"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        INSERT OR REPLACE INTO treasury_history 
+        (date, yield_10y, yield_2y, last_updated)
+        VALUES (?, ?, ?, ?)
+      ''', (date, yield_10y, yield_2y, datetime.now().isoformat()))
+      conn.commit()
+    finally:
+      self.close()
+
+  def get_treasury_history(self, days: int = 365) -> List[dict]:
+    """Get treasury yield history"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cutoff_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+      cursor.execute('''
+        SELECT date, yield_10y, yield_2y FROM treasury_history 
+        WHERE date >= ? 
+        ORDER BY date ASC
+      ''', (cutoff_date,))
+      rows = cursor.fetchall()
+      return [dict(row) for row in rows]
+    finally:
+      self.close()
+
+  def insert_cpi_history(self, date: str, cpi_value: float,
+                         mom_change: float = None, yoy_change: float = None):
+    """Insert CPI historical data"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        INSERT OR REPLACE INTO cpi_history 
+        (date, cpi_value, mom_change, yoy_change, last_updated)
+        VALUES (?, ?, ?, ?, ?)
+      ''', (date, cpi_value, mom_change, yoy_change, datetime.now().isoformat()))
+      conn.commit()
+    finally:
+      self.close()
+
+  def get_cpi_history(self, months: int = 12) -> List[dict]:
+    """Get CPI history"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        SELECT date, cpi_value, mom_change, yoy_change FROM cpi_history 
+        ORDER BY date DESC 
+        LIMIT ?
+      ''', (months,))
+      rows = cursor.fetchall()
+      # reverse to oldest -> newest
+      result = [dict(row) for row in rows]
+      return list(reversed(result))
+    finally:
+      self.close()
+
+  def insert_vix_history(self, date: str, vix_close: float,
+                         vix_high: float = None, vix_low: float = None):
+    """Insert VIX historical data"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cursor.execute('''
+        INSERT OR REPLACE INTO vix_history 
+        (date, vix_close, vix_high, vix_low, last_updated)
+        VALUES (?, ?, ?, ?, ?)
+      ''', (date, vix_close, vix_high, vix_low, datetime.now().isoformat()))
+      conn.commit()
+    finally:
+      self.close()
+
+  def get_vix_history(self, days: int = 365) -> List[dict]:
+    """Get VIX history"""
+    conn = self.connect()
+    cursor = conn.cursor()
+    try:
+      cutoff_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+      cursor.execute('''
+        SELECT date, vix_close, vix_high, vix_low FROM vix_history 
+        WHERE date >= ? 
+        ORDER BY date ASC
+      ''', (cutoff_date,))
       rows = cursor.fetchall()
       return [dict(row) for row in rows]
     finally:

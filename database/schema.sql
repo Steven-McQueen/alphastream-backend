@@ -2,7 +2,13 @@
 -- SQLite database for caching S&P 500 stock data
 
 DROP TABLE IF EXISTS stocks;
+DROP TABLE IF EXISTS market_indices;
+DROP TABLE IF EXISTS macro_indicators;
+DROP TABLE IF EXISTS treasury_history;
+DROP TABLE IF EXISTS cpi_history;
+DROP TABLE IF EXISTS vix_history;
 DROP TABLE IF EXISTS refresh_log;
+DROP TABLE IF EXISTS alternative_assets;
 
 -- Main stocks table
 CREATE TABLE stocks (
@@ -72,6 +78,62 @@ CREATE INDEX idx_last_updated ON stocks(last_updated);
 CREATE INDEX idx_market_cap ON stocks(market_cap DESC);
 CREATE INDEX idx_change_1d ON stocks(change_1d DESC);
 
+-- ============================================================================
+-- Market indices (current)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS market_indices (
+    symbol TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    value REAL NOT NULL,
+    change REAL NOT NULL,
+    change_pct REAL NOT NULL,
+    last_updated TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Macro indicators (current)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS macro_indicators (
+    indicator_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    value REAL NOT NULL,
+    change REAL,
+    unit TEXT,
+    last_updated TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Treasury history (365 days)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS treasury_history (
+    date TEXT PRIMARY KEY,
+    yield_10y REAL NOT NULL,
+    yield_2y REAL,
+    last_updated TEXT NOT NULL
+);
+
+-- ============================================================================
+-- CPI history (12 months)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS cpi_history (
+    date TEXT PRIMARY KEY,
+    cpi_value REAL NOT NULL,
+    mom_change REAL,
+    yoy_change REAL,
+    last_updated TEXT NOT NULL
+);
+
+-- ============================================================================
+-- VIX history (365 days)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS vix_history (
+    date TEXT PRIMARY KEY,
+    vix_close REAL NOT NULL,
+    vix_high REAL,
+    vix_low REAL,
+    last_updated TEXT NOT NULL
+);
+
 -- Refresh log table
 CREATE TABLE refresh_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,4 +146,18 @@ CREATE TABLE refresh_log (
 );
 
 CREATE INDEX idx_refresh_time ON refresh_log(refresh_time DESC);
+
+-- ============================================================================
+-- Alternative assets (crypto, commodities, currencies)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS alternative_assets (
+    symbol TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    asset_type TEXT NOT NULL,
+    value REAL,
+    change REAL,
+    change_percent REAL,
+    last_updated TEXT NOT NULL,
+    fetch_error TEXT
+);
 

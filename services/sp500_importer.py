@@ -122,7 +122,7 @@ def fetch_and_import_sp500() -> int:
     """Fetch data from SP500Live and import to database"""
     url = "https://www.sp500live.co/sp500_companies.json"
 
-    print(f"🔄 Fetching S&P 500 data from {url}...")
+    print(f"Fetching S&P 500 data from {url}...")
     start_time = time.time()
 
     try:
@@ -130,7 +130,7 @@ def fetch_and_import_sp500() -> int:
         response.raise_for_status()
         raw_data = response.json()
 
-        print(f"✅ Fetched {len(raw_data)} stocks")
+        print(f"Fetched {len(raw_data)} stocks")
 
         parsed_stocks = []
         for ticker, stock_data in raw_data.items():
@@ -140,7 +140,7 @@ def fetch_and_import_sp500() -> int:
             if parsed['ticker']:
               parsed_stocks.append(parsed)
           except Exception as e:
-            print(f"⚠️  Error parsing {ticker}: {e}")
+            print(f"Error parsing {ticker}: {e}")
 
         count = db.insert_stocks_bulk(parsed_stocks)
 
@@ -152,7 +152,7 @@ def fetch_and_import_sp500() -> int:
             duration=duration
         )
 
-        print(f"✅ Import complete in {duration:.2f}s")
+        print(f"Import complete in {duration:.2f}s")
         return count
 
     except Exception as e:
@@ -164,6 +164,6 @@ def fetch_and_import_sp500() -> int:
             duration=duration,
             error_msg=str(e)
         )
-        print(f"❌ Import failed: {e}")
+        print(f"Import failed: {e}")
         return 0
 
